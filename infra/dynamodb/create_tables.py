@@ -10,7 +10,6 @@ Tables created:
 Run: `python infra/dynamodb/create_tables.py`
 """
 import sys
-import time
 import boto3
 from botocore.exceptions import ClientError
 
@@ -33,15 +32,13 @@ def create_table(dynamodb, params):
     print(f"Creating table '{name}'...")
     dynamodb.create_table(**params)
     # wait
-    waiter = boto3.client('dynamodb').get_waiter('table_exists')
-    waiter.wait(TableName=name)
+    boto3.client('dynamodb').get_waiter('table_exists').wait(TableName=name)
     print(f"Table '{name}' created.")
 
 
 def main():
     dynamodb = boto3.client('dynamodb')
 
-    # ProductNames: simple lookup by name (allows duplicates with productId as sort key)
     create_table(dynamodb, {
         'TableName': 'ProductNames',
         'KeySchema': [
@@ -55,7 +52,6 @@ def main():
         'BillingMode': 'PAY_PER_REQUEST',
     })
 
-    # Products: primary product record; GSI on `name` for lookups by product name
     create_table(dynamodb, {
         'TableName': 'Products',
         'KeySchema': [
@@ -77,7 +73,6 @@ def main():
         'BillingMode': 'PAY_PER_REQUEST',
     })
 
-    # Messages: partition by conversationId (e.g., stream or room), sort by iso timestamp
     create_table(dynamodb, {
         'TableName': 'Messages',
         'KeySchema': [
@@ -101,7 +96,6 @@ def main():
         'BillingMode': 'PAY_PER_REQUEST',
     })
 
-    # Discounts: multiple discounts per product; sort key by start timestamp allows history
     create_table(dynamodb, {
         'TableName': 'Discounts',
         'KeySchema': [
