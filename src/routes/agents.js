@@ -3,9 +3,9 @@ import { Router } from 'express'
 import {
   classifyAndQueueChatMessage,
   draftReply,
-  parsePromo,
-  summarizeDebrief
+  parsePromo
 } from '../services/agentService.js'
+import { generatePostLiveDebrief } from '../services/debriefService.js'
 
 export const agentsRouter = Router()
 
@@ -42,19 +42,33 @@ agentsRouter.post('/parse-promo', (req, res) => {
   })
 })
 
-agentsRouter.post('/debrief', (req, res) => {
-  const { events = [] } = req.body
+agentsRouter.post('/debrief', async (req, res, next) => {
+  try {
+    const {
+      conversationId,
+      products = [],
+      messages,
+      discounts = [],
+      events = [],
+      useAi = true
+    } = req.body
 
-  if (!Array.isArray(events)) {
-    const err = new Error('events must be an array')
-    err.statusCode = 400
-    err.code = 'bad_request'
-    throw err
+    const normalizedMessages = Array.isArray(messages)
+      ? messages
+      : normalizeChatEvents(events)
+
+    const result = await generatePostLiveDebrief({
+      conversationId,
+      products,
+      messages: normalizedMessages,
+      discounts,
+      useAi
+    })
+
+    res.json({ result })
+  } catch (error) {
+    next(error)
   }
-
-  res.json({
-    result: summarizeDebrief({ events })
-  })
 })
 
 function assertText(value, fieldName) {
@@ -64,6 +78,29 @@ function assertText(value, fieldName) {
   err.statusCode = 400
   err.code = 'bad_request'
   throw err
+}
+
+function normalizeChatEvents(events) {
+  if (!Array.isArray(events)) {
+    const err = new Error('events must be an array')
+    err.statusCode = 400
+    err.code = 'bad_request'
+    throw err
+  }
+
+  return events
+    .filter((event) => event.type === 'chat')
+    .map((event) => ({
+      messageId: event.id,
+      messageTimestamp: event.timestamp ?? event.messageTimestamp ?? new Date(event.at ?? Date.now()).toISOString(),
+      buyerId: event.buyerId ?? event.buyer,
+      buyerUsername: event.buyerUsername ?? event.buyer,
+      messageText: event.message ?? event.text,
+      productId: event.productId ?? event.product,
+      aiCategory: event.intent,
+      replySent: Boolean(event.replySent || event.reply),
+      converted: Boolean(event.converted)
+    }))
 }
 
 function getChatFilterPayload(body) {
