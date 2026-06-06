@@ -1,0 +1,317 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Real-time AI operations layer for live commerce sellers
+
+Parameters:
+  LambdaRuntime:
+    Type: String
+    Default: python3.12
+  LogRetentionInDays:
+    Type: Number
+    Default: 14
+
+Resources:
+  ProductNameTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ProductNames
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: name
+          AttributeType: S
+        - AttributeName: productId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: name
+          KeyType: HASH
+        - AttributeName: productId
+          KeyType: RANGE
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  ProductDetailsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Products
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: productId
+          AttributeType: S
+        - AttributeName: name
+          AttributeType: S
+      KeySchema:
+        - AttributeName: productId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: NameIndex
+          KeySchema:
+            - AttributeName: name
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  ChatMessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Messages
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversationId
+          AttributeType: S
+        - AttributeName: messageTimestamp
+          AttributeType: S
+        - AttributeName: buyerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: conversationId
+          KeyType: HASH
+        - AttributeName: messageTimestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: BuyerIndex
+          KeySchema:
+            - AttributeName: buyerId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  DiscountsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Discounts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: productId
+          AttributeType: S
+        - AttributeName: startAt
+          AttributeType: N
+      KeySchema:
+        - AttributeName: productId
+          KeyType: HASH
+        - AttributeName: startAt
+          KeyType: RANGE
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  ChatQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: chat-queue
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  ProductDetailsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: product-details-queue
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  LiveCommerceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: live-commerce-lambda-role
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: live-commerce-lambda-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt ProductNameTable.Arn
+                  - !GetAtt ProductDetailsTable.Arn
+                  - !GetAtt ChatMessagesTable.Arn
+                  - !GetAtt DiscountsTable.Arn
+
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !GetAtt ChatQueue.Arn
+                  - !GetAtt ProductDetailsQueue.Arn
+
+  ResponderAgentLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: responder-agent-lambda
+      Runtime: !Ref LambdaRuntime
+      Handler: index.handler
+      Role: !GetAtt LiveCommerceLambdaRole.Arn
+      Timeout: 30
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+      Environment:
+        Variables:
+          PRODUCT_NAME_TABLE: !Ref ProductNameTable
+          PRODUCT_DETAILS_TABLE: !Ref ProductDetailsTable
+          CHAT_MESSAGES_TABLE: !Ref ChatMessagesTable
+          DISCOUNTS_TABLE: !Ref DiscountsTable
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              print("Responder agent received:", event)
+              return {"statusCode": 200, "body": "ok"}
+
+  ProductUpdateLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: product-update-lambda
+      Runtime: !Ref LambdaRuntime
+      Handler: index.handler
+      Role: !GetAtt LiveCommerceLambdaRole.Arn
+      Timeout: 30
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+      Environment:
+        Variables:
+          PRODUCT_NAME_TABLE: !Ref ProductNameTable
+          PRODUCT_DETAILS_TABLE: !Ref ProductDetailsTable
+          CHAT_MESSAGES_TABLE: !Ref ChatMessagesTable
+          DISCOUNTS_TABLE: !Ref DiscountsTable
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              print("Product update received:", event)
+              return {"statusCode": 200, "body": "ok"}
+
+  PostDebriefLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: post-debrief-lambda
+      Runtime: !Ref LambdaRuntime
+      Handler: index.handler
+      Role: !GetAtt LiveCommerceLambdaRole.Arn
+      Timeout: 30
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+      Environment:
+        Variables:
+          PRODUCT_NAME_TABLE: !Ref ProductNameTable
+          PRODUCT_DETAILS_TABLE: !Ref ProductDetailsTable
+          CHAT_MESSAGES_TABLE: !Ref ChatMessagesTable
+          DISCOUNTS_TABLE: !Ref DiscountsTable
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              print("Post debrief request:", event)
+              return {
+                  "statusCode": 200,
+                  "headers": {"Content-Type": "application/json"},
+                  "body": "{\"message\":\"post stream debrief generated\"}"
+              }
+
+  ResponderAgentLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/responder-agent-lambda
+      RetentionInDays: !Ref LogRetentionInDays
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  ProductUpdateLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/product-update-lambda
+      RetentionInDays: !Ref LogRetentionInDays
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  PostDebriefLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/post-debrief-lambda
+      RetentionInDays: !Ref LogRetentionInDays
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  ChatQueueEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn: ResponderAgentLambdaLogGroup
+    Properties:
+      EventSourceArn: !GetAtt ChatQueue.Arn
+      FunctionName: !Ref ResponderAgentLambda
+      BatchSize: 10
+      Enabled: true
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  ProductDetailsQueueEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn: ProductUpdateLambdaLogGroup
+    Properties:
+      EventSourceArn: !GetAtt ProductDetailsQueue.Arn
+      FunctionName: !Ref ProductUpdateLambda
+      BatchSize: 10
+      Enabled: true
+      Tags:
+        - Key: openai-sea-hackathon
+          Value: "true"
+
+  PostDebriefLambdaUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref PostDebriefLambda
+      AuthType: NONE
+
+  PostDebriefLambdaUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PostDebriefLambda
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+Outputs:
+  ChatQueueUrl:
+    Value: !Ref ChatQueue
+
+  ProductDetailsQueueUrl:
+    Value: !Ref ProductDetailsQueue
+
+  PostDebriefLambdaUrl:
+    Value: !GetAtt PostDebriefLambdaUrl.FunctionUrl
