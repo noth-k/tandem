@@ -4,6 +4,7 @@ import { agentsRouter } from './agents.js'
 import { debriefRouter } from './debrief.js'
 import { demoRouter } from './demo.js'
 import { realtimeRouter } from './realtime.js'
+import { audioRouter } from './audio.js'
 
 export const apiRouter = Router()
 
