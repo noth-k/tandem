@@ -49,14 +49,22 @@ from infra.dynamodb.client import (
 put_product('prod-123', {
     'name': 'Live Demo Shirt',
     'stockQty': 50,
-    'priceCents': 2999,
-    'currency': 'USD',
+    'price': 29.99,
+    'currency': 'SGD',
     'description': 'Lightweight streamer tee',
     'sku': 'LIVESHIRT-A',
     'platformIds': {'tiktok': 'TT123', 'shopee': 'SH123'},
     'tags': ['featured', 'new'],
     'isActive': True,
     'createdAt': '2026-06-06T12:00:00Z',
+})
+
+put_message('shopee-live-001', '2026-06-06T12:31:00Z', {
+    'buyerId': 'buyer-123',
+    'buyerUsername': 'shopper1',
+    'buyerMessage': 'Is this still in stock?',
+    'aiCategory': 'PRODUCT_QUERY',
+    'aiResponse': '',
 })
 ```
 
@@ -71,5 +79,5 @@ put_product('prod-123', {
 ## Notes
 
 - The sample loader writes 10 BestDenki-style electronics products.
-- Messages are created for a live conversation context, and discounts are applied to two products.
+- Messages are created for a Shopee live conversation context, and discounts are applied to two products.
 - Use `create_tables.py` first; then run `populate_sample_data.py`.

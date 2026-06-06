@@ -21,7 +21,7 @@ Tables
 - Attributes:
   - `name` (S)
   - `stockQty` (N)
-  - `price` (N) — store in smallest currency unit (e.g., cents) or as decimal
+  - `price` (N) — store as a numeric price; for example `1399.00` for SGD 1,399.00
   - `currency` (S) — e.g. USD, SGD
   - `description` (S)
   - `sku` (S)
@@ -38,16 +38,11 @@ Tables
   - Partition key: `conversationId` (S) — e.g., stream id or chat room id
   - Sort key: `messageTimestamp` (S, ISO8601) — ensures ordered retrieval
 - Attributes:
-  - `messageId` (S)
   - `buyerId` (S)
   - `buyerUsername` (S)
-  - `messageText` (S)
+  - `buyerMessage` (S)
   - `aiCategory` (S) — classifier label (e.g., QUESTION, PURCHASE_INTENT, SPAM)
   - `aiResponse` (S) — the text the responder produced (if any)
-  - `replySent` (BOOL)
-  - `priority` (N) — numeric priority for escalation
-  - `escalated` (BOOL)
-  - `createdAt` (S)
 - Indexes:
   - `BuyerIndex` (GSI on `buyerId`) — query messages by buyer.
 
@@ -58,8 +53,8 @@ Tables
   - Sort key: `startAt` (N) — epoch ms or unix timestamp to sort discount history
 - Attributes:
   - `discountId` (S)
-  - `valueAmount` (N, optional) — fixed amount off in smallest currency unit
-  - `valuePercent` (N, optional) — percentage off (0-100)
+  - `discountValueAmount` (N, optional) — fixed discount amount in dollars
+  - `discountValuePercent` (N, optional) — percentage off (0-100)
   - `startAt` (N)
   - `endAt` (N)
   - `acceptedBySeller` (BOOL)

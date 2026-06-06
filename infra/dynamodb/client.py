@@ -9,6 +9,21 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
+
+
+def _convert_numbers(obj: Any) -> Any:
+    """Recursively convert int/float to Decimal for DynamoDB compatibility."""
+    # bool is a subclass of int in Python; preserve booleans as-is.
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, float) or isinstance(obj, int):
+        return Decimal(str(obj))
+    if isinstance(obj, dict):
+        return {k: _convert_numbers(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_convert_numbers(v) for v in obj]
+    return obj
 
 
 def get_dynamodb_resource(profile_name: Optional[str] = None, region_name: Optional[str] = None):
@@ -27,6 +42,7 @@ def get_table(table_name: str, profile_name: Optional[str] = None, region_name: 
 def put_product(product_id: str, item: Dict[str, Any], profile_name: Optional[str] = None, region_name: Optional[str] = None):
     table = get_table('Products', profile_name=profile_name, region_name=region_name)
     item_with_id = {'productId': product_id, **item}
+    item_with_id = _convert_numbers(item_with_id)
     return table.put_item(Item=item_with_id)
 
 
@@ -51,6 +67,7 @@ def get_product(product_id: str, profile_name: Optional[str] = None, region_name
 def put_message(conversation_id: str, message_timestamp: str, item: Dict[str, Any], profile_name: Optional[str] = None, region_name: Optional[str] = None):
     table = get_table('Messages', profile_name=profile_name, region_name=region_name)
     item_with_keys = {'conversationId': conversation_id, 'messageTimestamp': message_timestamp, **item}
+    item_with_keys = _convert_numbers(item_with_keys)
     return table.put_item(Item=item_with_keys)
 
 
@@ -75,6 +92,7 @@ def query_messages_by_conversation(conversation_id: str, profile_name: Optional[
 def put_discount(product_id: str, start_at: int, item: Dict[str, Any], profile_name: Optional[str] = None, region_name: Optional[str] = None):
     table = get_table('Discounts', profile_name=profile_name, region_name=region_name)
     item_with_keys = {'productId': product_id, 'startAt': start_at, **item}
+    item_with_keys = _convert_numbers(item_with_keys)
     return table.put_item(Item=item_with_keys)
 
 
