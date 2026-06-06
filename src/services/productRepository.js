@@ -71,6 +71,24 @@ export async function getCurrentProduct() {
   }
 }
 
+export async function getLatestDiscount() {
+  if (process.env.USE_MOCK_PRODUCTS === 'true' || !isDynamoEnabled()) {
+    return null
+  }
+
+  try {
+    const response = await getClient().send(new ScanCommand({ TableName: discountsTable }))
+    const discounts = normalizeDiscounts(response.Items ?? [])
+      .filter((discount) => discount.productId && discount.startAt != null)
+      .sort((a, b) => Number(b.startAt) - Number(a.startAt))
+
+    return discounts[0] ?? null
+  } catch (error) {
+    console.warn(`Could not read latest discount from DynamoDB: ${error.message}`)
+    return null
+  }
+}
+
 export async function setCurrentProduct(productId) {
   if (process.env.USE_MOCK_PRODUCTS === 'true' || !isDynamoEnabled()) {
     return { saved: false, reason: 'dynamodb_not_configured' }
@@ -147,6 +165,34 @@ export function normalizeProducts(products) {
     price: product.price,
     currency: product.currency ?? 'USD'
   }))
+}
+
+export function normalizeDiscounts(discounts) {
+  return discounts.map((discount) => {
+    const valuePercent = Number(discount.valuePercent ?? 0)
+    const valueAmount = Number(discount.valueAmount ?? 0)
+    const discountType = discount.discountType
+      ?? (valuePercent > 0 ? 'percent' : 'fixed')
+    const discountAmount = discount.discountAmount
+      ?? (discountType === 'percent' ? valuePercent : valueAmount)
+    const startAt = discount.startAt == null ? null : Number(discount.startAt)
+    const endAt = discount.endAt == null ? null : Number(discount.endAt)
+
+    return {
+      ...discount,
+      id: discount.id ?? discount.discountId ?? `discount_${discount.productId}_${discount.startAt}`,
+      productId: discount.productId,
+      productName: discount.productName,
+      discountType,
+      discountAmount,
+      currency: discount.currency ?? 'USD',
+      durationSeconds: startAt != null && endAt != null && endAt > startAt
+        ? Math.round((endAt - startAt) / 1000)
+        : discount.durationSeconds ?? null,
+      startAt,
+      endAt
+    }
+  })
 }
 
 export function isDynamoEnabled() {

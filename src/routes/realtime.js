@@ -1,16 +1,9 @@
 import { Router } from 'express'
 
-import {
-  createRealtimeClientSecret,
-  createRealtimeTranscriptionCall
-} from '../services/openaiService.js'
+import { createRealtimeTranscriptionCall } from '../services/openaiService.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 
 export const realtimeRouter = Router()
-
-realtimeRouter.post('/client-secret', asyncHandler(async (_req, res) => {
-  res.json(await createRealtimeClientSecret())
-}))
 
 realtimeRouter.post('/sdp', asyncHandler(async (req, res) => {
   if (typeof req.body !== 'string' || !req.body.includes('v=0')) {

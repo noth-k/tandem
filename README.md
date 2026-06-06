@@ -43,10 +43,10 @@ These endpoints intentionally use deterministic placeholder logic. Keep real mar
 
 The browser captures camera and microphone audio. It sends a WebRTC SDP offer to `POST /api/realtime/sdp`; this backend forwards the offer to OpenAI Realtime with a transcription-only session using `REALTIME_TRANSCRIPTION_MODEL`.
 
-Final transcript chunks are sent to `POST /api/audio/interpret`. The backend loads products from DynamoDB, falls back to demo products when DynamoDB is unavailable, calls an LLM for structured intent extraction, and auto-applies valid actions in memory:
+Final transcript chunks are sent to `POST /api/audio/interpret`. The backend loads products from DynamoDB, falls back to demo products when DynamoDB is unavailable, calls an LLM for structured intent extraction, and sends valid product update actions to `PRODUCT_DETAILS_QUEUE`:
 
-- `change_product` updates `Products.isCurrent` when DynamoDB is configured; local demo mode mirrors the same state in memory.
-- `apply_discount` applies a percent or fixed discount and writes a `Discounts` record when DynamoDB is configured.
+- `change_product` sends an `audio.change_product` message to the product details queue.
+- `apply_discount` sends an `audio.apply_discount` message to the product details queue.
 - `spam` is ignored.
 
 Set `OPENAI_API_KEY` for live transcription and LLM extraction. If the intent LLM call fails, `/api/audio/interpret` returns an error instead of guessing locally.

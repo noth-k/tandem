@@ -31,8 +31,16 @@ audioRouter.post('/interpret', asyncHandler(async (req, res) => {
     throw err
   }
 
+  const normalizedTranscript = transcript.trim()
+  console.info('audio.final_transcript', {
+    streamId,
+    transcript: normalizedTranscript,
+    length: normalizedTranscript.length,
+    receivedAt: new Date().toISOString()
+  })
+
   const result = await interpretTranscript({
-    transcript: transcript.trim(),
+    transcript: normalizedTranscript,
     streamId
   })
 

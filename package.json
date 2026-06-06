@@ -17,6 +17,7 @@
     "check": "for f in $(find src -name '*.js'); do node --check \"$f\" || exit 1; done"
   },
   "dependencies": {
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 >>>>>>> 61a6761 (audio parser 1.0)
     "@aws-sdk/client-sqs": "^3.1063.0",
@@ -24,6 +25,8 @@
     "@aws-sdk/client-dynamodb": "^3.716.0",
     "@aws-sdk/lib-dynamodb": "^3.716.0",
 >>>>>>> Stashed changes
+=======
+>>>>>>> 0ec1c15 (audio parser 1.1)
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

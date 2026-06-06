@@ -1,15 +1,17 @@
+import { randomUUID } from 'node:crypto'
+
 import { demoSeller } from './demoData.js'
 import { publishEvent } from './eventBus.js'
 import { extractAudioIntent } from './openaiService.js'
 import {
   findProductById,
   getCurrentProduct,
+  getLatestDiscount,
   isDynamoEnabled,
-  listProducts,
-  saveDiscount,
-  setCurrentProduct
+  listProducts
 } from './productRepository.js'
-import { addActiveDiscount, getStreamState, setActiveProduct } from './streamState.js'
+import { sendProductDetailsMessageToQueue } from './sqsService.js'
+import { getStreamState } from './streamState.js'
 
 export async function getAudioState(streamId = demoSeller.streamId) {
   const memoryState = getStreamState(streamId)
@@ -18,12 +20,14 @@ export async function getAudioState(streamId = demoSeller.streamId) {
     ? await findProductById(memoryState.activeProductId)
     : (await listProducts()).find((product) => product.isCurrent) ?? null
   const activeProduct = currentProduct ?? fallbackProduct
+  const latestDiscount = await getLatestDiscount()
 
   return {
     ...memoryState,
     source: isDynamoEnabled() ? 'dynamodb' : 'memory',
     activeProductId: activeProduct?.productId ?? memoryState.activeProductId,
-    activeProduct
+    activeProduct,
+    latestDiscount
   }
 }
 
@@ -53,15 +57,22 @@ export async function interpretTranscript({ transcript, streamId = demoSeller.st
   if (intent.intent === 'change_product' && intent.productId) {
     const product = await findProductById(intent.productId)
     if (product) {
-      const saved = await setCurrentProduct(product.productId)
-      setActiveProduct(product.productId, streamId)
-      result.state = await getAudioState(streamId)
+      const message = buildProductDetailsQueueMessage({
+        eventType: 'audio.change_product',
+        streamId,
+        transcript,
+        intent,
+        product
+      })
+      const queued = await sendProductDetailsMessageToQueue(message)
       result.action = {
-        type: 'activeProductChanged',
+        type: 'productUpdateQueued',
+        queued,
+        message,
         product,
-        saved
+        requestedAction: 'activeProductChanged'
       }
-      publishEvent('activeProductChanged', result.action)
+      publishEvent('productUpdateQueued', result.action)
     }
   }
 
@@ -81,21 +92,59 @@ export async function interpretTranscript({ transcript, streamId = demoSeller.st
         parseConfidence: intent.confidence,
         sourcePlatform: 'browser-demo'
       }
-      const saved = await saveDiscount(discount)
-      const active = addActiveDiscount({ ...discount, saved }, streamId)
-
-      result.state = await getAudioState(streamId)
-      result.action = {
-        type: 'discountApplied',
+      const message = buildProductDetailsQueueMessage({
+        eventType: 'audio.apply_discount',
+        streamId,
+        transcript,
+        intent,
         product,
-        discount: active.discount
+        discount
+      })
+      const queued = await sendProductDetailsMessageToQueue(message)
+      result.action = {
+        type: 'productUpdateQueued',
+        queued,
+        message,
+        product,
+        discount,
+        requestedAction: 'discountApplied'
       }
-      publishEvent('discountApplied', result.action)
+      publishEvent('productUpdateQueued', result.action)
     }
   }
 
   publishEvent('transcriptInterpreted', result)
   return result
+}
+
+function buildProductDetailsQueueMessage({
+  eventType,
+  streamId,
+  transcript,
+  intent,
+  product,
+  discount
+}) {
+  const createdAt = new Date().toISOString()
+
+  return {
+    schemaVersion: 1,
+    eventId: randomUUID(),
+    eventType,
+    source: 'tandem-backend.audio-parser',
+    streamId,
+    createdAt,
+    transcript,
+    intent,
+    product: {
+      productId: product.productId,
+      productName: product.name,
+      sku: product.sku ?? null,
+      price: product.price,
+      currency: product.currency
+    },
+    discount: discount ?? null
+  }
 }
 
 function validateIntentAgainstCatalog(intent, products) {

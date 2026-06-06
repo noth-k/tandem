@@ -1,8 +1,30 @@
 const OPENAI_API_BASE = 'https://api.openai.com/v1'
+const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-transcribe'
+const RETRYABLE_REALTIME_STATUSES = new Set([502, 503, 504])
 
 export async function createRealtimeTranscriptionCall({ sdp }) {
   assertApiKey()
 
+  const maxAttempts = Number.parseInt(process.env.REALTIME_SDP_MAX_ATTEMPTS ?? '3', 10)
+  let lastError
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await createRealtimeTranscriptionCallAttempt({ sdp })
+    } catch (error) {
+      lastError = error
+      if (!isRetryableRealtimeError(error) || attempt === maxAttempts) {
+        throw error
+      }
+
+      await wait(500 * attempt)
+    }
+  }
+
+  throw lastError
+}
+
+async function createRealtimeTranscriptionCallAttempt({ sdp }) {
   const controller = new AbortController()
   const timeoutMs = Number.parseInt(process.env.REALTIME_SDP_TIMEOUT_MS ?? '45000', 10)
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -13,9 +35,9 @@ export async function createRealtimeTranscriptionCall({ sdp }) {
     audio: {
       input: {
         transcription: {
-          model: process.env.REALTIME_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper',
+          model: process.env.REALTIME_TRANSCRIPTION_MODEL ?? DEFAULT_TRANSCRIPTION_MODEL,
           language: 'en',
-          delay: process.env.REALTIME_TRANSCRIPTION_DELAY ?? 'low'
+          prompt: 'Live commerce seller speech. Preserve product names, discounts, prices, and time windows.'
         },
         turn_detection: null
       }
@@ -54,41 +76,12 @@ export async function createRealtimeTranscriptionCall({ sdp }) {
   return body
 }
 
-export async function createRealtimeClientSecret() {
-  assertApiKey()
+function isRetryableRealtimeError(error) {
+  return RETRYABLE_REALTIME_STATUSES.has(error.statusCode)
+}
 
-  const response = await fetch(`${OPENAI_API_BASE}/realtime/client_secrets`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      session: {
-        type: 'transcription',
-        audio: {
-          input: {
-            transcription: {
-              model: process.env.REALTIME_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper',
-              language: 'en',
-              delay: process.env.REALTIME_TRANSCRIPTION_DELAY ?? 'low'
-            },
-            turn_detection: null
-          }
-        }
-      }
-    })
-  })
-
-  const data = await response.json()
-  if (!response.ok) {
-    const err = new Error(`OpenAI realtime client secret failed: ${JSON.stringify(data)}`)
-    err.statusCode = response.status
-    err.code = 'openai_realtime_secret_error'
-    throw err
-  }
-
-  return data
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function summarizeOpenAIError(body) {
