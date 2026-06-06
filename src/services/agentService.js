@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 
 import { saveChatMessage } from './dynamoService.js'
+import { respondToMessageIfNeeded } from './responderService.js'
 import { sendChatMessageToQueue } from './sqsService.js'
 
 const INTENTS = {
@@ -87,6 +88,20 @@ export async function classifyAndQueueChatMessage(payload) {
   } catch (error) {
     result.saved_to_dynamodb = false
     result.dynamodb_error = error.message
+  }
+
+  if (result.saved_to_dynamodb && classification.reply_needed) {
+    try {
+      result.agent3 = await respondToMessageIfNeeded({
+        payload,
+        classification
+      })
+    } catch (error) {
+      result.agent3 = {
+        responded: false,
+        error: error.message
+      }
+    }
   }
 
   return result
