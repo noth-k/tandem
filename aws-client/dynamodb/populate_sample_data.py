@@ -14,167 +14,131 @@ AWS_CLIENT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if AWS_CLIENT_ROOT not in sys.path:
     sys.path.insert(0, AWS_CLIENT_ROOT)
 
-from dynamodb.client import add_product_name, put_product
+from dynamodb.client import add_product_name, get_table, put_product
 
 
 def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
 
+def clear_table(table_name: str, key_names: list[str]) -> int:
+    table = get_table(table_name)
+    deleted = 0
+    expression_attribute_names = {f'#k{index}': key for index, key in enumerate(key_names)}
+    projection_expression = ', '.join(expression_attribute_names.keys())
+    response = table.scan(
+        ProjectionExpression=projection_expression,
+        ExpressionAttributeNames=expression_attribute_names,
+    )
+
+    with table.batch_writer() as batch:
+        while True:
+            for item in response.get('Items', []):
+                batch.delete_item(Key={key: item[key] for key in key_names})
+                deleted += 1
+
+            last_key = response.get('LastEvaluatedKey')
+            if not last_key:
+                break
+
+            response = table.scan(
+                ProjectionExpression=projection_expression,
+                ExpressionAttributeNames=expression_attribute_names,
+                ExclusiveStartKey=last_key,
+            )
+
+    return deleted
+
+
 def main():
     now = iso_now()
     products = [
         {
-            'productId': 'ipad-pro-12-9-m2',
-            'name': 'iPad Pro 12.9 M2 512GB',
+            'productId': 'serum',
+            'name': 'Hyaluronic Glow Serum 30ml',
             'isCurrent': True,
-            'stockQty': 18,
-            'price': 1399.00,
+            'stockQty': 38,
+            'price': 12.90,
+            'wasPrice': 16.90,
             'currency': 'SGD',
-            'description': '12.9-inch Liquid Retina XDR display, M2 chip, Wi-Fi, 512GB storage.',
-            'sku': 'ELEC-APPLE-IPADPRO129-M2-512',
-            'platformIds': {'shopee': 'SP-IPADPRO129'},
-            'tags': ['tablet', 'apple', 'pro'],
+            'description': 'Lightweight hyaluronic acid serum for dewy hydration and fast-absorbing glow.',
+            'sku': 'GLOW-SERUM-HA-30ML',
+            'platformIds': {'shopee': 'GL-HA-SERUM'},
+            'tags': ['skincare', 'serum', 'bestseller', 'hydrating'],
             'isActive': True,
             'createdAt': now,
             'updatedAt': now,
         },
         {
-            'productId': 'ipad-air-m1-256',
-            'name': 'iPad Air M1 256GB',
+            'productId': 'lip',
+            'name': 'Rhode Lip Tint',
             'isCurrent': False,
-            'stockQty': 26,
-            'price': 749.00,
+            'stockQty': 120,
+            'price': 6.50,
+            'wasPrice': 6.50,
             'currency': 'SGD',
-            'description': '10.9-inch Liquid Retina display, M1 chip, Wi-Fi, 256GB storage.',
-            'sku': 'ELEC-APPLE-IPADAIR-M1-256',
-            'platformIds': {'shopee': 'SP-IPADAIR'},
-            'tags': ['tablet', 'apple', 'midrange'],
+            'description': 'Transfer-resistant and moisturizing lip tint with a glossy finish.',
+            'sku': 'GLOW-LIP-RHODE',
+            'platformIds': {'shopee': 'GL-LIP-RHODE'},
+            'tags': ['beauty', 'lip tint', 'rhode', 'bundle'],
             'isActive': True,
             'createdAt': now,
             'updatedAt': now,
         },
         {
-            'productId': 'airpods-pro-2-usbc',
-            'name': 'AirPods Pro 2 USB-C',
-            'isCurrent': False,            
-            'stockQty': 84,
-            'price': 249.00,
-            'currency': 'SGD',
-            'description': 'Wireless earbuds with active noise cancellation, transparency mode, and USB-C MagSafe case.',
-            'sku': 'ELEC-APPLE-AIRPODSPRO2-USBC',
-            'platformIds': {'shopee': 'SP-AIRPODSPRO2'},
-            'tags': ['audio', 'earbuds', 'apple'],
-            'isActive': True,
-            'createdAt': now,
-            'updatedAt': now,
-        },
-        {
-            'productId': 'macbook-air-m2-13-512',
-            'name': 'MacBook Air M2 13-inch 512GB',
+            'productId': 'shirt',
+            'name': 'Oversized Linen Shirt - Sand',
             'isCurrent': False,
-            'stockQty': 14,
-            'price': 1199.00,
+            'stockQty': 11,
+            'price': 18.00,
+            'wasPrice': 24.00,
             'currency': 'SGD',
-            'description': '13.6-inch laptop with M2 chip, 16GB memory, and 512GB SSD.',
-            'sku': 'ELEC-APPLE-MBA-M2-13-512',
-            'platformIds': {'shopee': 'SP-MBA13M2'},
-            'tags': ['laptop', 'apple', 'ultrabook'],
+            'description': 'Relaxed oversized linen shirt in sand, with limited stock during the live.',
+            'sku': 'GLOW-LINEN-SHIRT-SAND',
+            'platformIds': {'shopee': 'GL-LINEN-SAND'},
+            'tags': ['fashion', 'linen', 'low-stock'],
             'isActive': True,
             'createdAt': now,
             'updatedAt': now,
         },
         {
-            'productId': 'samsung-galaxy-s24-256',
-            'name': 'Samsung Galaxy S24 256GB',
+            'productId': 'clip',
+            'name': 'Ceramic Hair Claw Clip',
             'isCurrent': False,
-            'stockQty': 31,
-            'price': 999.00,
+            'stockQty': 240,
+            'price': 3.20,
+            'wasPrice': 3.20,
             'currency': 'SGD',
-            'description': 'Flagship Android phone with Galaxy AI features, triple camera, and 256GB storage.',
-            'sku': 'ELEC-SAMSUNG-S24-256',
-            'platformIds': {'shopee': 'SP-GALAXYS24'},
-            'tags': ['phone', 'android', 'samsung'],
+            'description': 'Glossy ceramic hair claw clip, featured as a free gift in the lip tint bundle.',
+            'sku': 'GLOW-CLIP-CERAMIC',
+            'platformIds': {'shopee': 'GL-CERAMIC-CLIP'},
+            'tags': ['beauty accessory', 'hair clip', 'bundle gift'],
             'isActive': True,
             'createdAt': now,
             'updatedAt': now,
         },
         {
-            'productId': 'samsung-galaxy-tab-s9-256',
-            'name': 'Samsung Galaxy Tab S9 256GB',
+            'productId': 'spf',
+            'name': 'Daily SPF50 Sunscreen Gel',
             'isCurrent': False,
-            'stockQty': 22,
-            'price': 899.00,
+            'stockQty': 64,
+            'price': 9.90,
+            'wasPrice': 9.90,
             'currency': 'SGD',
-            'description': '11-inch Dynamic AMOLED 2X tablet with S Pen and 256GB storage.',
-            'sku': 'ELEC-SAMSUNG-TABS9-256',
-            'platformIds': {'shopee': 'SP-TABS9'},
-            'tags': ['tablet', 'android', 'samsung'],
-            'isActive': True,
-            'createdAt': now,
-            'updatedAt': now,
-        },
-        {
-            'productId': 'sony-wh-1000xm5-black',
-            'name': 'Sony WH-1000XM5 Headphones',
-            'isCurrent': False,
-            'stockQty': 48,
-            'price': 349.00,
-            'currency': 'SGD',
-            'description': 'Wireless over-ear headphones with adaptive noise cancellation and long battery life.',
-            'sku': 'ELEC-SONY-WH1000XM5-BLK',
-            'platformIds': {'shopee': 'SP-WH1000XM5'},
-            'tags': ['audio', 'headphones', 'sony'],
-            'isActive': True,
-            'createdAt': now,
-            'updatedAt': now,
-        },
-        {
-            'productId': 'nintendo-switch-oled-white',
-            'name': 'Nintendo Switch OLED White',
-            'isCurrent': False,
-            'stockQty': 37,
-            'price': 349.00,
-            'currency': 'SGD',
-            'description': 'Nintendo Switch console with 7-inch OLED screen, white Joy-Con controllers, and 64GB storage.',
-            'sku': 'ELEC-NINTENDO-SWITCHOLED-WHT',
-            'platformIds': {'shopee': 'SP-SWITCHOLED'},
-            'tags': ['gaming', 'console', 'nintendo'],
-            'isActive': True,
-            'createdAt': now,
-            'updatedAt': now,
-        },
-        {
-            'productId': 'gopro-hero12-black',
-            'name': 'GoPro HERO12 Black',
-            'stockQty': 19,
-            'isCurrent': False,
-            'price': 499.00,
-            'currency': 'SGD',
-            'description': 'Waterproof action camera with 5.3K video, HyperSmooth stabilization, and improved battery life.',
-            'sku': 'ELEC-GOPRO-HERO12-BLK',
-            'platformIds': {'shopee': 'SP-HERO12'},
-            'tags': ['camera', 'action', 'gopro'],
-            'isActive': True,
-            'createdAt': now,
-            'updatedAt': now,
-        },
-        {
-            'productId': 'anker-737-power-bank',
-            'name': 'Anker 737 Power Bank 24000mAh',
-            'isCurrent': False,
-            'stockQty': 65,
-            'price': 189.00,
-            'currency': 'SGD',
-            'description': 'High-capacity portable charger with 140W USB-C fast charging and smart digital display.',
-            'sku': 'ELEC-ANKER-737-PB24K',
-            'platformIds': {'shopee': 'SP-ANKER737'},
-            'tags': ['accessory', 'charger', 'anker'],
+            'description': 'Non-sticky SPF50 gel sunscreen with no white cast and a matte finish.',
+            'sku': 'GLOW-SPF50-GEL',
+            'platformIds': {'shopee': 'GL-SPF50-GEL'},
+            'tags': ['skincare', 'sunscreen', 'spf', 'low-stock'],
             'isActive': True,
             'createdAt': now,
             'updatedAt': now,
         },
     ]
+
+    print('Clearing existing product catalog...')
+    deleted_products = clear_table('Products', ['productId'])
+    deleted_names = clear_table('ProductNames', ['name', 'productId'])
+    print(f'Cleared {deleted_products} products and {deleted_names} product-name rows.')
 
     print('Writing product catalog...')
     for product in products:
