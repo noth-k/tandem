@@ -1,5 +1,11 @@
 const OPENAI_API_BASE = 'https://api.openai.com/v1'
 const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-transcribe'
+const DEFAULT_TRANSCRIPTION_PROMPT = [
+  'Live commerce seller speech in English.',
+  'Transcribe primarily English words and product names.',
+  'Preserve product names, discounts, prices, and time windows.',
+  'If speech is not English or is background chatter, do not translate it; omit it or render only clearly spoken English words.'
+].join(' ')
 const RETRYABLE_REALTIME_STATUSES = new Set([502, 503, 504])
 
 export async function createRealtimeTranscriptionCall({ sdp }) {
@@ -37,7 +43,7 @@ async function createRealtimeTranscriptionCallAttempt({ sdp }) {
         transcription: {
           model: process.env.REALTIME_TRANSCRIPTION_MODEL ?? DEFAULT_TRANSCRIPTION_MODEL,
           language: 'en',
-          prompt: 'Live commerce seller speech. Preserve product names, discounts, prices, and time windows.'
+          prompt: process.env.REALTIME_TRANSCRIPTION_PROMPT ?? DEFAULT_TRANSCRIPTION_PROMPT
         },
         turn_detection: null
       }
