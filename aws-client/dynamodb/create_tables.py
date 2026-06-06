@@ -7,7 +7,7 @@ Tables created:
 - Messages: chat messages per conversation (buyer messages and AI fields)
 - Discounts: per-product discount records
 
-Run: `python infra/dynamodb/create_tables.py`
+Run: `python aws-client/dynamodb/create_tables.py`
 """
 import sys
 import time

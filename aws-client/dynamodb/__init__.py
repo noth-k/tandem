@@ -1,1 +1,1 @@
-# infra.dynamodb package root
+# dynamodb package root
