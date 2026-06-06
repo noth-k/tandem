@@ -11,10 +11,25 @@ Prerequisites
 Create the tables
 
 ```bash
-pip install boto3
+python3 -m pip install -r infra/dynamodb/requirements.txt
 export AWS_REGION=us-east-1
 # ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set (or use an AWS profile)
-python infra/dynamodb/create_tables.py
+python3 infra/dynamodb/create_tables.py
+```
+
+Team setup
+
+If your teammates clone this repo, they can run:
+
+```bash
+cd /path/to/tandem
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r infra/dynamodb/requirements.txt
+export AWS_REGION=us-east-1
+export AWS_PROFILE=hackathon   # or use AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY directly
+python3 infra/dynamodb/create_tables.py
 ```
 
 Link your code to DynamoDB
@@ -22,7 +37,7 @@ Link your code to DynamoDB
 1) Set the AWS profile or credentials locally:
 
 ```bash
-export AWS_REGION=us-east-1
+export AWS_REGION=ap-southeast-1
 export AWS_PROFILE=hackathon
 ```
 
