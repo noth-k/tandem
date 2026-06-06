@@ -1,7 +1,7 @@
 import { Router } from 'express'
 
 import {
-  classifyMessage,
+  classifyAndQueueChatMessage,
   draftReply,
   parsePromo
 } from '../services/agentService.js'
@@ -9,13 +9,19 @@ import { generatePostLiveDebrief } from '../services/debriefService.js'
 
 export const agentsRouter = Router()
 
-agentsRouter.post('/classify', (req, res) => {
-  const { message, productContext } = req.body
-  assertText(message, 'message')
+agentsRouter.post('/classify', async (req, res, next) => {
+  try {
+    const payload = getChatFilterPayload(req.body)
+    console.log('[agent2] received chat message', payload)
+    const result = await classifyAndQueueChatMessage(payload)
+    console.log('[agent2] classification result', result)
 
-  res.json({
-    result: classifyMessage({ message, productContext })
-  })
+    res.json({
+      result
+    })
+  } catch (error) {
+    next(error)
+  }
 })
 
 agentsRouter.post('/respond', (req, res) => {
@@ -95,4 +101,28 @@ function normalizeChatEvents(events) {
       replySent: Boolean(event.replySent || event.reply),
       converted: Boolean(event.converted)
     }))
+}
+
+function getChatFilterPayload(body) {
+  const {
+    conversation_id,
+    conversation_timestamp,
+    message,
+    product_id,
+    buyer_username
+  } = body
+
+  assertText(conversation_id, 'conversation_id')
+  assertText(conversation_timestamp, 'conversation_timestamp')
+  assertText(message, 'message')
+  assertText(product_id, 'product_id')
+  assertText(buyer_username, 'buyer_username')
+
+  return {
+    conversation_id: conversation_id.trim(),
+    conversation_timestamp: conversation_timestamp.trim(),
+    message: message.trim(),
+    product_id: product_id.trim(),
+    buyer_username: buyer_username.trim()
+  }
 }
