@@ -6,7 +6,6 @@ import {
   parsePromo
 } from '../services/agentService.js'
 import { generatePostLiveDebrief } from '../services/debriefService.js'
-import { respondToPendingMessages } from '../services/responderService.js'
 
 export const agentsRouter = Router()
 
@@ -32,21 +31,6 @@ agentsRouter.post('/respond', (req, res) => {
   res.json({
     result: draftReply({ message, classification, productContext })
   })
-})
-
-agentsRouter.post('/respond-pending', async (req, res, next) => {
-  try {
-    const { livestream_id, limit } = req.body ?? {}
-
-    const result = await respondToPendingMessages({
-      livestream_id: typeof livestream_id === 'string' ? livestream_id.trim() : '',
-      limit
-    })
-
-    res.json({ result })
-  } catch (error) {
-    next(error)
-  }
 })
 
 agentsRouter.post('/parse-promo', (req, res) => {

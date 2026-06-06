@@ -48,7 +48,7 @@ Tables
   - `messageText` (S)
   - `productId` (S)
   - `aiCategory` (S) — classifier label (e.g., QUESTION, PURCHASE_INTENT, SPAM)
-  - `aiResponse` (S) — the text the responder produced (if any)
+  - `aiResponse` (S) — the text the responder Lambda produced (if any)
   - `replySent` (BOOL)
   - `priority` (N) — numeric priority for escalation
   - `escalated` (BOOL)

@@ -438,6 +438,7 @@ function normalizeProduct(product) {
 
 function normalizeMessage(message) {
   const text = message.messageText ?? message.buyerMessage ?? message.message ?? ''
+  const aiResponse = message.aiResponse ?? message.ai_response ?? ''
   return {
     messageId: message.messageId ?? '',
     conversationId: message.conversationId ?? '',
@@ -448,8 +449,8 @@ function normalizeMessage(message) {
     messageText: text,
     productId: message.productId ?? message.product ?? null,
     aiCategory: message.aiCategory ?? '',
-    aiResponse: message.aiResponse ?? '',
-    replySent: Boolean(message.replySent || message.aiResponse),
+    aiResponse,
+    replySent: Boolean(message.replySent || aiResponse),
     priority: Number(message.priority ?? 0),
     escalated: Boolean(message.escalated),
     converted: Boolean(message.converted || message.orderPlaced || message.conversionStatus === 'converted')
