@@ -25,6 +25,11 @@ npm run check    # syntax-check server entrypoints
 ## Routes
 
 - `GET /health`
+- `POST /api/realtime/client-secret`
+- `POST /api/realtime/sdp` legacy backend SDP proxy
+- `GET /api/audio/state`
+- `GET /api/audio/events`
+- `POST /api/audio/interpret`
 - `GET /api/demo/snapshot`
 - `GET /api/demo/events`
 - `POST /api/agents/classify`
@@ -33,3 +38,21 @@ npm run check    # syntax-check server entrypoints
 - `POST /api/agents/debrief`
 
 These endpoints intentionally use deterministic placeholder logic. Keep real marketplace APIs, database persistence, and platform adapters behind these boundaries so the frontend demo can stay reliable.
+
+## Audio Parser Flow
+
+The browser captures camera and microphone audio. It sends a WebRTC SDP offer to `POST /api/realtime/sdp`; this backend forwards the offer to OpenAI Realtime with a transcription-only session using `REALTIME_TRANSCRIPTION_MODEL`.
+
+Final transcript chunks are sent to `POST /api/audio/interpret`. The backend loads products from DynamoDB, falls back to demo products when DynamoDB is unavailable, calls an LLM for structured intent extraction, and sends valid product update actions to `PRODUCT_DETAILS_QUEUE`:
+
+- `change_product` sends an `audio.change_product` message to the product details queue.
+- `apply_discount` sends an `audio.apply_discount` message to the product details queue.
+- `spam` is ignored.
+
+Set `OPENAI_API_KEY` for live transcription and LLM extraction. If the intent LLM call fails, `/api/audio/interpret` returns an error instead of guessing locally.
+
+Set `USE_DYNAMODB=true` plus AWS credentials/region to use the current DynamoDB schema:
+
+- `Products.productId` is the product key.
+- `Products.isCurrent` marks the single live product.
+- `Discounts.productId` + `Discounts.startAt` stores parsed live discounts.

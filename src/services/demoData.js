@@ -7,25 +7,44 @@ export const demoSeller = {
 
 export const demoProducts = [
   {
-    id: 'lip_tint',
-    name: 'Velvet Lip Tint',
-    price: 1490,
-    currency: 'USD',
-    stockQty: 82
-  },
-  {
-    id: 'cleanser',
-    name: 'Rice Cloud Cleanser',
-    price: 2200,
-    currency: 'USD',
-    stockQty: 44
-  },
-  {
     id: 'serum',
-    name: 'Barrier Repair Serum',
-    price: 3400,
+    name: 'Hyaluronic Glow Serum 30ml',
+    isCurrent: true,
+    price: 12.9,
     currency: 'USD',
-    stockQty: 19
+    stockQty: 38
+  },
+  {
+    id: 'lip',
+    name: 'Velvet Matte Lip Tint — Rosewood',
+    isCurrent: false,
+    price: 6.5,
+    currency: 'USD',
+    stockQty: 120
+  },
+  {
+    id: 'shirt',
+    name: 'Oversized Linen Shirt — Sand',
+    isCurrent: false,
+    price: 18,
+    currency: 'USD',
+    stockQty: 11
+  },
+  {
+    id: 'clip',
+    name: 'Ceramic Hair Claw Clip',
+    isCurrent: false,
+    price: 3.2,
+    currency: 'USD',
+    stockQty: 240
+  },
+  {
+    id: 'spf',
+    name: 'Daily SPF50 Sunscreen Gel',
+    isCurrent: false,
+    price: 9.9,
+    currency: 'USD',
+    stockQty: 64
   }
 ]
 
