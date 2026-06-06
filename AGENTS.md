@@ -2,82 +2,146 @@
 
 Guidance for AI coding agents working in this repository.
 
-## Architecture Overview
+## Project Shape
 
-This repo is the Tandem backend for a live-commerce AI co-host demo. It has three main areas:
+This repo is the Tandem backend for a live-commerce AI co-host demo.
 
-- `src/`: Node.js/Express backend routes and service logic.
-- `infra/`: deployable AWS infrastructure, including CloudFormation templates and Lambda source.
-- `aws-client/`: reusable AWS helper/client code for local scripts or backend integrations.
+- Backend: Node.js/Express app under `src/`.
+- Infrastructure: AWS CloudFormation, Lambda, and SQS/Lambda wiring under `infra/`.
+- Shared AWS client helpers and schema notes under `aws-client/`.
+- DynamoDB helper scripts and schema notes under `aws-client/dynamodb/`.
+- Lambda source and bundling scripts: `infra/lambda/<function-name>/`.
 
-The backend is the API boundary for the app. AWS infrastructure handles async processing and persistence-oriented work. Keep those boundaries clear when adding new features.
+Keep deployable infrastructure files under `infra/`. Keep reusable AWS client/helper code under `aws-client/`. Do not recreate the older root-level `cloudformation/`, `lambda/`, or `infra/dynamodb/` layouts.
 
-## High-Level Flow
+## AWS Infrastructure Contract
 
-The system is shaped around live-commerce events:
+The main stack is defined in `infra/cloudformation/template.yaml`.
 
-- Chat or buyer events enter the backend.
-- The backend may respond synchronously for demo routes, or enqueue work to SQS for async handling.
-- SQS queues trigger Lambda functions.
-- Lambdas process events, call AI/business logic as needed, and read/write AWS data stores.
-- Some post-stream work can be handled through a Lambda Function URL.
+Current AWS resources:
 
-Current async infrastructure:
+- DynamoDB tables:
+  - `ProductNames`
+  - `Products`
+  - `Messages`
+  - `Discounts`
+- SQS queues:
+  - `chat-queue`
+  - `product-details-queue`
+- Lambda functions:
+  - `responder-agent-lambda`
+  - `product-update-lambda`
+  - `post-debrief-lambda`
 
-- `chat-queue` is intended for buyer/chat events.
-- `product-details-queue` is intended for product or inventory update events.
-- `responder-agent-lambda` handles chat-response style work.
-- `product-update-lambda` handles product update style work.
-- `post-debrief-lambda` handles post-stream summary/debrief style work.
+Queue to Lambda mapping:
 
-## Working With Backend Code
+- `chat-queue` triggers `responder-agent-lambda`.
+- `product-details-queue` triggers `product-update-lambda`.
+- `post-debrief-lambda` is exposed through a Lambda Function URL.
 
-Backend code lives under `src/`.
+Lambda environment variables from CloudFormation:
 
-- Keep route handlers thin.
-- Put reusable logic in `src/services/`.
-- Keep AWS SDK calls behind small service/client modules rather than scattering them through routes.
-- Read AWS resource configuration from environment variables.
-- Do not commit credentials, account-specific secrets, or local `.env` files.
+- `PRODUCT_NAME_TABLE`
+- `PRODUCT_DETAILS_TABLE`
+- `CHAT_MESSAGES_TABLE`
+- `DISCOUNTS_TABLE`
 
-When publishing to SQS from the backend, use stable JSON message envelopes with event type, IDs, timestamps, and the minimum context the Lambda needs. Prefer additive changes to message shapes so producers and consumers can evolve safely.
+When changing table, queue, function, or environment variable names, update all affected CloudFormation resources, Lambda code, backend config, documentation, and any message producers/consumers together.
 
-## Working With Infrastructure
-
-CloudFormation lives in `infra/cloudformation/`.
-
-Lambda source lives in `infra/lambda/<function-name>/`. Each Lambda currently has:
-
-- `index.py`
-- `requirements.txt`
-- `bundle.sh`
-
-Generated Lambda zips are build artifacts and should not be committed.
-
-When changing infrastructure:
-
-- Keep CloudFormation, Lambda code, backend config, and documentation in sync.
-- Update IAM permissions when a Lambda or backend integration needs a new AWS action.
-- Keep resource names and environment variables consistent across CloudFormation and code.
-- Preserve the project tagging conventions unless intentionally changing them.
-
-## AWS Client Helpers
+## AWS Client Code
 
 Reusable AWS helper code lives under `aws-client/`.
 
-This directory is for shared scripts and client utilities, not automatically deployed Lambda code. If a Lambda needs shared helper code, package it deliberately through the Lambda bundle process or copy a small stable helper into that Lambda.
+Current layout:
 
-## Repo Hygiene
+- `aws-client/dynamodb/client.py`: Python helpers for connecting to DynamoDB and reading/writing `Products`, `Messages`, `Discounts`, and `ProductNames`.
+- `aws-client/dynamodb/create_tables.py`: standalone DynamoDB table creation script for local/manual setup.
+- `aws-client/dynamodb/SCHEMA.md`: DynamoDB schema reference.
+- `aws-client/dynamodb/requirements.txt`: Python dependencies for these helper scripts.
 
-- Keep generated artifacts out of git: Lambda zips, Python caches, local virtualenvs, logs, and `.env` files.
-- Keep deployable infra in `infra/`; do not recreate older root-level `cloudformation/` or `lambda/` directories.
-- Keep reusable AWS client helpers in `aws-client/`.
-- Before pushing infra-related changes, check the repo status carefully so generated artifacts are not accidentally tracked.
+Treat `aws-client/` as shared client/support code, not deployed Lambda source by default. If Lambda code needs one of these helpers, either package it intentionally through the Lambda bundle process or duplicate only the small stable logic needed by that Lambda.
 
-## Useful Checks
+Keep scripts in this area aligned with the CloudFormation stack. If a table/index/key changes in `infra/cloudformation/template.yaml`, update `aws-client/dynamodb/SCHEMA.md`, `create_tables.py`, and `client.py` in the same change.
+
+## Backend to SQS Guidance
+
+The backend is an Express service under `src/`. Existing agent-like routes live in `src/routes/agents.js` and deterministic placeholder logic lives in `src/services/agentService.js`.
+
+When adding backend SQS publishing:
+
+- Prefer a small service module under `src/services/` for SQS publishing rather than putting AWS SDK calls directly in route handlers.
+- Read queue URLs from environment variables, for example `CHAT_QUEUE_URL` and `PRODUCT_DETAILS_QUEUE_URL`.
+- Keep request validation in routes or close to route boundaries.
+- Send JSON messages with stable envelope fields so Lambda consumers can evolve safely.
+- Include IDs and timestamps useful for idempotency and debugging.
+- Do not commit AWS credentials, account IDs, or local `.env` files.
+
+Prefer additive changes to these envelopes. If a breaking change is needed, update both the producer and Lambda consumer in the same change.
+
+## Lambda Guidance
+
+Each Lambda has:
+
+- `index.py` as the handler source.
+- `requirements.txt` for Python dependencies.
+- `bundle.sh` to build `function.zip`.
+
+The generated `function.zip` files are ignored and should not be committed.
+
+When updating a Lambda:
+
+- Keep handler entrypoint as `index.handler` unless CloudFormation is updated.
+- Parse SQS events from `event["Records"]`.
+- Treat each SQS record independently; one bad message should not silently hide the rest.
+- Log enough structured context to debug message IDs and event types, but never log secrets.
+- Use `boto3` in Lambda code when calling DynamoDB or other AWS services. Add non-runtime dependencies to the relevant `requirements.txt`.
+- Keep function timeout and IAM permissions in `infra/cloudformation/template.yaml` aligned with new behavior.
+
+Expected responsibilities:
+
+- `responder-agent-lambda`: consume chat messages from `chat-queue`, classify/draft responses, and write message or response state to `Messages`.
+- `product-update-lambda`: consume product update events from `product-details-queue`, update `Products`/`ProductNames`, and write discount records when needed.
+- `post-debrief-lambda`: handle post-stream debrief requests through the Function URL and return JSON responses.
+
+## DynamoDB Guidance
+
+Schema documentation lives in `aws-client/dynamodb/SCHEMA.md`.
+
+Table purpose:
+
+- `ProductNames`: lookup from product name to `productId`.
+- `Products`: canonical product metadata and inventory.
+- `Messages`: buyer messages, classifier outputs, AI responses, and escalation state.
+- `Discounts`: per-product discount campaigns and accepted promotions.
+
+Use ISO8601 strings for readable timestamps unless the schema requires a numeric sort key, such as `Discounts.startAt`.
+
+For money values, prefer integer smallest units such as cents to avoid float precision bugs.
+
+## CloudFormation and IAM Guidance
+
+Primary stack: `infra/cloudformation/template.yaml`.
+
+Member access policy: `infra/cloudformation/member-access-policy.yaml`.
+
+When adding AWS capabilities:
+
+- Add least-privilege permissions to the Lambda role in the main template.
+- If hackathon members need direct console/API access, update `member-access-policy.yaml` too.
+- Preserve the `openai-sea-hackathon=true` tag on stack resources unless there is a deliberate reason to change tagging.
+- Keep log groups and retention configured for new Lambda functions.
+- Add outputs for resource URLs/ARNs that backend or deployment setup needs.
+
+## Local Checks
+
+Useful commands:
 
 ```bash
 npm run check
+```
+
+```bash
+python aws-client/dynamodb/create_tables.py
 ```
 
 ```bash
@@ -85,3 +149,12 @@ npm run check
 ./infra/lambda/product-update-lambda/bundle.sh
 ./infra/lambda/post-debrief-lambda/bundle.sh
 ```
+
+Run Lambda bundle scripts from the repo root or directly from each Lambda directory. They create ignored `function.zip` artifacts beside each Lambda.
+
+## Repo Hygiene
+
+- Keep generated artifacts out of git: `function.zip`, Python caches, local venvs, logs, and `.env` files are ignored.
+- Keep code and infrastructure changes together when they depend on each other.
+- Prefer small, explicit modules over large route handlers or Lambda files that mix validation, AWS calls, and business logic.
+- Before pushing infrastructure-related changes, check `git status --ignored --short infra aws-client` to confirm only intended files are tracked.
