@@ -9,6 +9,7 @@ export function createApp() {
   const app = express()
 
   app.use(cors({ origin: process.env.CORS_ORIGIN ?? true }))
+  app.use('/api/realtime/sdp', express.text({ type: ['application/sdp', 'text/plain'], limit: '2mb' }))
   app.use(express.json({ limit: '1mb' }))
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'))
 
