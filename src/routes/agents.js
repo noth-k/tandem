@@ -1,7 +1,7 @@
 import { Router } from 'express'
 
 import {
-  classifyMessage,
+  classifyAndQueueChatMessage,
   draftReply,
   parsePromo,
   summarizeDebrief
@@ -9,13 +9,16 @@ import {
 
 export const agentsRouter = Router()
 
-agentsRouter.post('/classify', (req, res) => {
-  const { message, productContext } = req.body
-  assertText(message, 'message')
+agentsRouter.post('/classify', async (req, res, next) => {
+  try {
+    const payload = getChatFilterPayload(req.body)
 
-  res.json({
-    result: classifyMessage({ message, productContext })
-  })
+    res.json({
+      result: await classifyAndQueueChatMessage(payload)
+    })
+  } catch (error) {
+    next(error)
+  }
 })
 
 agentsRouter.post('/respond', (req, res) => {
@@ -58,4 +61,25 @@ function assertText(value, fieldName) {
   err.statusCode = 400
   err.code = 'bad_request'
   throw err
+}
+
+function getChatFilterPayload(body) {
+  const {
+    conversation_id,
+    message,
+    product_id,
+    buyer_username
+  } = body
+
+  assertText(conversation_id, 'conversation_id')
+  assertText(message, 'message')
+  assertText(product_id, 'product_id')
+  assertText(buyer_username, 'buyer_username')
+
+  return {
+    conversation_id: conversation_id.trim(),
+    message: message.trim(),
+    product_id: product_id.trim(),
+    buyer_username: buyer_username.trim()
+  }
 }
