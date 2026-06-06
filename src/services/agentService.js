@@ -108,6 +108,7 @@ async function classifyMessageWithOpenAI(payload) {
           role: 'user',
           content: JSON.stringify({
             conversation_id: payload.conversation_id,
+            conversation_timestamp: payload.conversation_timestamp,
             message: payload.message,
             product_id: payload.product_id,
             buyer_username: payload.buyer_username

@@ -14,10 +14,17 @@ function getSqsClient() {
   return sqsClient
 }
 
-export async function sendChatMessageToQueue({ conversation_id, message, product_id, buyer_username }) {
+export async function sendChatMessageToQueue({
+  conversation_id,
+  conversation_timestamp,
+  message,
+  product_id,
+  buyer_username
+}) {
   const queueUrl = process.env.CHAT_QUEUE_URL ?? DEFAULT_CHAT_QUEUE_URL
   const body = {
     conversation_id,
+    conversation_timestamp,
     message,
     product_id,
     buyer_username

@@ -66,18 +66,21 @@ function assertText(value, fieldName) {
 function getChatFilterPayload(body) {
   const {
     conversation_id,
+    conversation_timestamp,
     message,
     product_id,
     buyer_username
   } = body
 
   assertText(conversation_id, 'conversation_id')
+  assertText(conversation_timestamp, 'conversation_timestamp')
   assertText(message, 'message')
   assertText(product_id, 'product_id')
   assertText(buyer_username, 'buyer_username')
 
   return {
     conversation_id: conversation_id.trim(),
+    conversation_timestamp: conversation_timestamp.trim(),
     message: message.trim(),
     product_id: product_id.trim(),
     buyer_username: buyer_username.trim()
