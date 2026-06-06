@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 
+import { saveChatMessage } from './dynamoService.js'
 import { sendChatMessageToQueue } from './sqsService.js'
 
 const INTENTS = {
@@ -62,27 +63,33 @@ function getOpenAIClient() {
 
 export async function classifyAndQueueChatMessage(payload) {
   const classification = await classifyMessageWithOpenAI(payload)
+  const result = {
+    ...classification,
+    queued: false
+  }
 
-  if (!classification.reply_needed) {
-    return {
-      ...classification,
-      queued: false
+  if (classification.reply_needed) {
+    try {
+      await sendChatMessageToQueue(payload)
+      result.queued = true
+    } catch (error) {
+      result.queue_error = error.message
     }
   }
 
   try {
-    await sendChatMessageToQueue(payload)
-    return {
-      ...classification,
-      queued: true
-    }
+    await saveChatMessage({
+      payload,
+      classification,
+      queued: result.queued
+    })
+    result.saved_to_dynamodb = true
   } catch (error) {
-    return {
-      ...classification,
-      queued: false,
-      queue_error: error.message
-    }
+    result.saved_to_dynamodb = false
+    result.dynamodb_error = error.message
   }
+
+  return result
 }
 
 async function classifyMessageWithOpenAI(payload) {
