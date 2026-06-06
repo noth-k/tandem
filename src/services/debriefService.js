@@ -308,10 +308,14 @@ export function buildDebriefAnalytics({ conversationId, products, messages, disc
       return product?.productId === discount.productId || message.productId === discount.productId
     })
     const signalBefore = related.filter((message) =>
-      message.timestampMs < discount.startAt && message.timestampMs >= discount.startAt - 10 * 60 * 1000
+      classifyIntent(message) === INTENT.PURCHASE &&
+      message.timestampMs < discount.startAt &&
+      message.timestampMs >= discount.startAt - 10 * 60 * 1000
     ).length
     const signalAfter = related.filter((message) =>
-      message.timestampMs >= discount.startAt && message.timestampMs <= discount.endAt
+      classifyIntent(message) === INTENT.PURCHASE &&
+      message.timestampMs >= discount.startAt &&
+      message.timestampMs <= discount.endAt
     ).length
 
     return {
@@ -322,8 +326,8 @@ export function buildDebriefAnalytics({ conversationId, products, messages, disc
       signalBefore,
       signalAfter,
       takeaway: signalAfter > signalBefore
-        ? 'Demand increased after the offer was mentioned.'
-        : 'No clear post-discount demand lift yet; repeat the offer or pin it more visibly.'
+        ? 'The offer drove more purchase-intent messages after it was mentioned.'
+        : 'The offer did not create a clear purchase-intent lift yet; repeat it or pin it more visibly.'
     }
   })
 
@@ -674,6 +678,6 @@ function sanitizeDebrief(debrief, analytics) {
 
 function formatOffer(discount) {
   if (discount.valuePercent > 0) return `${discount.valuePercent}% off`
-  if (discount.valueAmount > 0) return `${discount.valueAmount} off`
+  if (discount.valueAmount > 0) return `$${discount.valueAmount.toFixed(2)} off`
   return 'Live offer'
 }
