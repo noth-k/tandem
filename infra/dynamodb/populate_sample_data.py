@@ -27,6 +27,7 @@ def main():
         {
             'productId': 'ipad-pro-12-9-m2',
             'name': 'iPad Pro 12.9 M2 512GB',
+            'isCurrent': True,
             'stockQty': 18,
             'price': 1399.00,
             'currency': 'SGD',
@@ -41,6 +42,7 @@ def main():
         {
             'productId': 'ipad-air-m1-256',
             'name': 'iPad Air M1 256GB',
+            'isCurrent': False,
             'stockQty': 26,
             'price': 749.00,
             'currency': 'SGD',
@@ -55,6 +57,7 @@ def main():
         {
             'productId': 'airpods-pro-2-usbc',
             'name': 'AirPods Pro 2 USB-C',
+            'isCurrent': False,            
             'stockQty': 84,
             'price': 249.00,
             'currency': 'SGD',
@@ -69,6 +72,7 @@ def main():
         {
             'productId': 'macbook-air-m2-13-512',
             'name': 'MacBook Air M2 13-inch 512GB',
+            'isCurrent': False,
             'stockQty': 14,
             'price': 1199.00,
             'currency': 'SGD',
@@ -83,6 +87,7 @@ def main():
         {
             'productId': 'samsung-galaxy-s24-256',
             'name': 'Samsung Galaxy S24 256GB',
+            'isCurrent': False,
             'stockQty': 31,
             'price': 999.00,
             'currency': 'SGD',
@@ -97,6 +102,7 @@ def main():
         {
             'productId': 'samsung-galaxy-tab-s9-256',
             'name': 'Samsung Galaxy Tab S9 256GB',
+            'isCurrent': False,
             'stockQty': 22,
             'price': 899.00,
             'currency': 'SGD',
@@ -111,6 +117,7 @@ def main():
         {
             'productId': 'sony-wh-1000xm5-black',
             'name': 'Sony WH-1000XM5 Headphones',
+            'isCurrent': False,
             'stockQty': 48,
             'price': 349.00,
             'currency': 'SGD',
@@ -125,6 +132,7 @@ def main():
         {
             'productId': 'nintendo-switch-oled-white',
             'name': 'Nintendo Switch OLED White',
+            'isCurrent': False,
             'stockQty': 37,
             'price': 349.00,
             'currency': 'SGD',
@@ -140,6 +148,7 @@ def main():
             'productId': 'gopro-hero12-black',
             'name': 'GoPro HERO12 Black',
             'stockQty': 19,
+            'isCurrent': False,
             'price': 499.00,
             'currency': 'SGD',
             'description': 'Waterproof action camera with 5.3K video, HyperSmooth stabilization, and improved battery life.',
@@ -153,6 +162,7 @@ def main():
         {
             'productId': 'anker-737-power-bank',
             'name': 'Anker 737 Power Bank 24000mAh',
+            'isCurrent': False,
             'stockQty': 65,
             'price': 189.00,
             'currency': 'SGD',

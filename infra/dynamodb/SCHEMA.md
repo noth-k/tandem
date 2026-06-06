@@ -28,6 +28,7 @@ Tables
   - `platformIds` (M) — map of platform-specific ids (tiktok, shopee, lazada)
   - `tags` (L)
   - `isActive` (BOOL)
+  - `isCurrent` (BOOL) — true for the single product currently being shown in the live stream; exactly one product should be true at a time.
   - `createdAt` / `updatedAt` (S, ISO8601)
 - Indexes:
   - `NameIndex` (GSI on `name`) — lookup by product name.
@@ -71,3 +72,4 @@ Notes
 - All tables are created with `PAY_PER_REQUEST` billing mode in the provided script for simplicity in a demo/hackathon environment.
 - Timestamps: prefer ISO8601 strings for readability in the UI; use unix epoch numbers for numeric sort keys where noted.
 - Storing monetary values: use integer smallest-unit or a well-defined decimal field to avoid float issues.
+- Current product invariant: application code should update `isCurrent` through a helper that clears the previous current product and marks the new one in the same operation.

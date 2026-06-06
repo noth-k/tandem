@@ -6,10 +6,12 @@ for reading/writing item attributes in the `Products`, `Messages`, `Discounts`, 
 """
 
 from decimal import Decimal
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.types import TypeSerializer
 
 
 def _convert_numbers(obj: Any) -> Any:
@@ -63,6 +65,44 @@ def get_product(product_id: str, profile_name: Optional[str] = None, region_name
     table = get_table('Products', profile_name=profile_name, region_name=region_name)
     response = table.get_item(Key={'productId': product_id})
     return response.get('Item')
+
+
+def set_current_product(product_id: str, profile_name: Optional[str] = None, region_name: Optional[str] = None):
+    table = get_table('Products', profile_name=profile_name, region_name=region_name)
+    target = table.get_item(Key={'productId': product_id}).get('Item')
+    if not target:
+        raise ValueError(f"Product '{product_id}' does not exist")
+
+    product_ids = []
+    response = table.scan(ProjectionExpression='productId')
+    while True:
+        product_ids.extend(item['productId'] for item in response.get('Items', []))
+        last_key = response.get('LastEvaluatedKey')
+        if not last_key:
+            break
+        response = table.scan(
+            ProjectionExpression='productId',
+            ExclusiveStartKey=last_key,
+        )
+
+    updated_at = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+    serializer = TypeSerializer()
+    transact_items = [
+        {
+            'Update': {
+                'TableName': table.name,
+                'Key': {'productId': serializer.serialize(pid)},
+                'UpdateExpression': 'SET isCurrent = :isCurrent, updatedAt = :updatedAt',
+                'ExpressionAttributeValues': {
+                    ':isCurrent': serializer.serialize(pid == product_id),
+                    ':updatedAt': serializer.serialize(updated_at),
+                },
+            }
+        }
+        for pid in product_ids
+    ]
+
+    return table.meta.client.transact_write_items(TransactItems=transact_items)
 
 
 def put_message(conversation_id: str, message_timestamp: str, item: Dict[str, Any], profile_name: Optional[str] = None, region_name: Optional[str] = None):
