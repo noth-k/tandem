@@ -9,12 +9,12 @@ import os
 import sys
 from datetime import datetime, timezone
 
-# Ensure the repo root is on sys.path when running this file directly.
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+# Ensure the aws-client root is on sys.path when running this file directly.
+AWS_CLIENT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if AWS_CLIENT_ROOT not in sys.path:
+    sys.path.insert(0, AWS_CLIENT_ROOT)
 
-from infra.dynamodb.client import add_product_name, put_product
+from dynamodb.client import add_product_name, put_product
 
 
 def iso_now() -> str:

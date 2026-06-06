@@ -2,8 +2,8 @@
 """Simulate incoming Shopee Live buyer messages into the Messages table.
 
 Usage:
-  python infra/dynamodb/simulate_shopee_messages.py
-  python infra/dynamodb/simulate_shopee_messages.py --delay 1.5 --clear-first
+  python aws-client/dynamodb/simulate_shopee_messages.py
+  python aws-client/dynamodb/simulate_shopee_messages.py --delay 1.5 --clear-first
 """
 
 import argparse
@@ -12,12 +12,12 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 
-# Ensure the repo root is on sys.path when running this file directly.
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+# Ensure the aws-client root is on sys.path when running this file directly.
+AWS_CLIENT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if AWS_CLIENT_ROOT not in sys.path:
+    sys.path.insert(0, AWS_CLIENT_ROOT)
 
-from infra.dynamodb.client import get_table, put_message
+from dynamodb.client import get_table, put_message
 from boto3.dynamodb.conditions import Key
 
 

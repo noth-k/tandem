@@ -1,1 +1,0 @@
-# infra.dynamodb package root

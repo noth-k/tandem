@@ -5,19 +5,19 @@ This deletes data from Messages and Discounts only. It intentionally leaves
 Products and ProductNames untouched because those are seller preset catalog data.
 
 Usage:
-  python infra/dynamodb/clear_runtime_tables.py --yes
+  python aws-client/dynamodb/clear_runtime_tables.py --yes
 """
 
 import argparse
 import os
 import sys
 
-# Ensure the repo root is on sys.path when running this file directly.
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+# Ensure the aws-client root is on sys.path when running this file directly.
+AWS_CLIENT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if AWS_CLIENT_ROOT not in sys.path:
+    sys.path.insert(0, AWS_CLIENT_ROOT)
 
-from infra.dynamodb.client import get_table
+from dynamodb.client import get_table
 
 
 RUNTIME_TABLE_KEYS = {

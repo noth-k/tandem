@@ -5,8 +5,8 @@ This stands in for the audio parser during testing. Each event represents a
 seller utterance that has already been parsed into structured discount data.
 
 Usage:
-  python infra/dynamodb/simulate_audio_discounts.py
-  python infra/dynamodb/simulate_audio_discounts.py --delay 2 --clear-first
+  python aws-client/dynamodb/simulate_audio_discounts.py
+  python aws-client/dynamodb/simulate_audio_discounts.py --delay 2 --clear-first
 """
 
 import argparse
@@ -15,12 +15,12 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 
-# Ensure the repo root is on sys.path when running this file directly.
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+# Ensure the aws-client root is on sys.path when running this file directly.
+AWS_CLIENT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if AWS_CLIENT_ROOT not in sys.path:
+    sys.path.insert(0, AWS_CLIENT_ROOT)
 
-from infra.dynamodb.client import get_table, put_discount
+from dynamodb.client import get_table, put_discount
 
 
 DISCOUNT_EVENTS = [
