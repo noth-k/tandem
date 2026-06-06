@@ -40,6 +40,14 @@ const STOPWORDS = new Set([
   'on'
 ])
 
+const PRODUCT_ALIASES = {
+  serum: ['glow serum', 'hyaluronic', 'serum'],
+  lip: ['lipstick', 'lip stick', 'lip tint', 'tint', 'rosewood', 'rhode'],
+  spf: ['sunscreen', 'spf50', 'spf', 'white cast'],
+  shirt: ['linen shirt', 'shirt', 'sand', 'size'],
+  clip: ['hair clip', 'claw clip', 'clip']
+}
+
 const DEBRIEF_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -188,12 +196,13 @@ export async function generatePostLiveDebrief({
 
   try {
     const aiDebrief = await refineDebriefWithOpenAI(analytics)
+    const sanitizedDebrief = sanitizeDebrief(aiDebrief, analytics)
     return {
       source: 'openai',
       model: config.openai.debriefModel,
       generatedAt: new Date().toISOString(),
       totals: analytics.totals,
-      ...aiDebrief
+      ...sanitizedDebrief
     }
   } catch (error) {
     return {
@@ -238,13 +247,15 @@ export function buildDebriefAnalytics({ conversationId, products, messages, disc
     const intent = classifyIntent(message)
     const productId = product?.productId ?? message.productId ?? 'unknown'
     const productName = product?.name ?? 'Unknown product'
-    const stats = ensureStats(productStats, productId, productName)
 
-    if (productId !== 'unknown') stats.mentions += 1
-    if (intent === INTENT.PURCHASE) stats.purchaseSignals += 1
-    if (intent === INTENT.QUESTION) stats.questions += 1
-    if (intent === INTENT.COMPLAINT) stats.complaints += 1
-    if (stats.sampleMessages.length < 3) stats.sampleMessages.push(message.messageText)
+    if (intent !== INTENT.SPAM && product) {
+      const stats = productStats.get(product.productId)
+      stats.mentions += 1
+      if (intent === INTENT.PURCHASE) stats.purchaseSignals += 1
+      if (intent === INTENT.QUESTION) stats.questions += 1
+      if (intent === INTENT.COMPLAINT) stats.complaints += 1
+      if (stats.sampleMessages.length < 3) stats.sampleMessages.push(message.messageText)
+    }
 
     const objection = detectObjection(message.messageText)
     if (objection) {
@@ -258,7 +269,7 @@ export function buildDebriefAnalytics({ conversationId, products, messages, disc
       objectionBuckets.set(objection.topic, current)
     }
 
-    if (intent === INTENT.QUESTION && !message.replySent) {
+    if ((intent === INTENT.QUESTION || intent === INTENT.COMPLAINT) && !message.replySent) {
       unansweredQuestions.push({
         buyerId: message.buyerId,
         buyerUsername: message.buyerUsername,
@@ -266,7 +277,7 @@ export function buildDebriefAnalytics({ conversationId, products, messages, disc
         productName,
         question: message.messageText,
         priority: scoreQuestionPriority(message.messageText, productId),
-        suggestedFollowUp: buildSuggestedQuestionReply(message.messageText, productName)
+        suggestedFollowUp: buildSuggestedQuestionReply(message.messageText, productName, intent)
       })
     }
 
@@ -355,9 +366,14 @@ async function refineDebriefWithOpenAI(analytics) {
             {
               type: 'input_text',
               text: [
-                'You are Tandem, an AI operations analyst for Shopee Live electronics sellers.',
+                'You are Tandem, an AI operations analyst for Shopee Live skincare and beauty sellers.',
                 'Convert the computed stream analytics into a seller-facing post-live debrief of about 200 words.',
                 'Do not invent metrics. Preserve product IDs, buyer IDs, counts, and table-ready structure.',
+                'productDemand must include only products that already appear in the provided productDemand array.',
+                'Do not add unknown products or infer new product rows; map buyer messages to an existing catalog product where possible.',
+                'For each unansweredQuestions item, rewrite suggestedFollowUp as a specific seller action based on the buyer question and product context.',
+                'Do not use generic service recovery or order-number language unless the buyer is reporting a past order issue, damage, leakage, refund, or delivery problem.',
+                'For authenticity or fake-product concerns, suggest reassuring the buyer and sharing official listing, QR seal, batch, or verification proof.',
                 'Focus on missed revenue, buyer follow-up, objection handling, and next-stream actions/improvements.'
               ].join(' ')
             }
@@ -469,15 +485,19 @@ function resolveProductForMessage(message, productById) {
   if (message.productId && productById.has(message.productId)) return productById.get(message.productId)
 
   const tokens = tokenize(message.messageText)
+  const text = message.messageText.toLowerCase()
   let best = null
   let bestScore = 0
 
   for (const product of productById.values()) {
     const productTokens = tokenize(product.name)
     const score = productTokens.filter((token) => tokens.includes(token)).length
-    if (score > bestScore) {
+    const aliasScore = (PRODUCT_ALIASES[product.productId] ?? [])
+      .reduce((total, alias) => total + (text.includes(alias) ? 2 : 0), 0)
+    const totalScore = score + aliasScore
+    if (totalScore > bestScore) {
       best = product
-      bestScore = score
+      bestScore = totalScore
     }
   }
 
@@ -533,15 +553,24 @@ function scoreQuestionPriority(text, productId) {
   return Math.min(100, score)
 }
 
-function buildSuggestedQuestionReply(question, productName) {
+function buildSuggestedQuestionReply(question, productName, intent = INTENT.QUESTION) {
+  if (/(leaking|broken|damaged|refund|arrived|order)/i.test(question)) {
+    return `Send a service recovery reply for ${productName} and ask for the buyer's order number.`
+  }
+  if (/(authentic|fake|original|real|qr|seal)/i.test(question)) {
+    return `Reassure the buyer that ${productName} is authentic and share official listing or verification proof.`
+  }
   if (/(usb-c|charger)/i.test(question)) {
-    return `${productName} supports USB-C where applicable; confirm the included cable and wattage before checkout.`
+    return `Answer compatibility details for ${productName} and confirm what is included before checkout.`
   }
   if (/(discount|deal|bundle)/i.test(question)) {
     return `We are tracking live offers for ${productName}. Send the buyer the active Shopee deal or next promo window.`
   }
-  if (/(warranty|authentic|fake)/i.test(question)) {
-    return `Confirm ${productName} warranty/authenticity and point the buyer to the official Shopee listing proof.`
+  if (/(warranty)/i.test(question)) {
+    return `Confirm ${productName} warranty or seller guarantee details and point the buyer to official proof.`
+  }
+  if (intent === INTENT.COMPLAINT) {
+    return `Acknowledge the concern about ${productName} and send a specific trust-building reply.`
   }
   return `Follow up with a direct answer about ${productName} and include the Shopee checkout link.`
 }
@@ -624,25 +653,23 @@ function buildNextActions({ productDemand, unansweredQuestions, warmLeads, topOb
   return actions
 }
 
-function ensureStats(productStats, productId, productName) {
-  if (!productStats.has(productId)) {
-    productStats.set(productId, {
-      productId,
-      name: productName,
-      mentions: 0,
-      purchaseSignals: 0,
-      questions: 0,
-      complaints: 0,
-      demandScore: 0,
-      sampleMessages: []
-    })
-  }
-
-  return productStats.get(productId)
-}
-
 function getProductId(product) {
   return product.productId ?? product.id ?? ''
+}
+
+function sanitizeDebrief(debrief, analytics) {
+  const catalogProducts = new Map(analytics.productDemand.map((product) => [product.productId, product]))
+  const productDemand = (debrief.productDemand ?? [])
+    .filter((product) => catalogProducts.has(product.productId))
+
+  const missingProducts = analytics.productDemand
+    .filter((product) => !productDemand.some((item) => item.productId === product.productId))
+
+  return {
+    ...debrief,
+    productDemand: [...productDemand, ...missingProducts]
+      .sort((a, b) => b.demandScore - a.demandScore)
+  }
 }
 
 function formatOffer(discount) {
