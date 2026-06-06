@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { demoSeller } from './demoData.js'
 import { publishEvent } from './eventBus.js'
 import { extractAudioIntent } from './openaiService.js'
@@ -8,10 +6,11 @@ import {
   getCurrentProduct,
   getLatestDiscount,
   isDynamoEnabled,
-  listProducts
+  listProducts,
+  saveDiscount,
+  setCurrentProduct
 } from './productRepository.js'
-import { sendProductDetailsMessageToQueue } from './sqsService.js'
-import { getStreamState } from './streamState.js'
+import { addActiveDiscount, getStreamState, setActiveProduct } from './streamState.js'
 
 export async function getAudioState(streamId = demoSeller.streamId) {
   const memoryState = getStreamState(streamId)
@@ -20,7 +19,9 @@ export async function getAudioState(streamId = demoSeller.streamId) {
     ? await findProductById(memoryState.activeProductId)
     : (await listProducts()).find((product) => product.isCurrent) ?? null
   const activeProduct = currentProduct ?? fallbackProduct
-  const latestDiscount = await getLatestDiscount()
+  const latestMemoryDiscount = [...memoryState.activeDiscounts]
+    .sort((a, b) => getDiscountTimestamp(b) - getDiscountTimestamp(a))[0] ?? null
+  const latestDiscount = await getLatestDiscount() ?? latestMemoryDiscount
 
   return {
     ...memoryState,
@@ -57,22 +58,20 @@ export async function interpretTranscript({ transcript, streamId = demoSeller.st
   if (intent.intent === 'change_product' && intent.productId) {
     const product = await findProductById(intent.productId)
     if (product) {
-      const message = buildProductDetailsQueueMessage({
-        eventType: 'audio.change_product',
-        streamId,
-        transcript,
-        intent,
-        product
-      })
-      const queued = await sendProductDetailsMessageToQueue(message)
+      const persistence = await setCurrentProduct(product.productId)
+      const state = setActiveProduct(product.productId, streamId)
+      const activeProduct = await getCurrentProduct() ?? product
       result.action = {
-        type: 'productUpdateQueued',
-        queued,
-        message,
+        type: 'productChanged',
         product,
+        activeProduct,
+        persistence,
+        streamId,
+        updatedAt: state.updatedAt,
         requestedAction: 'activeProductChanged'
       }
-      publishEvent('productUpdateQueued', result.action)
+      result.state = await getAudioState(streamId)
+      publishEvent('productChanged', result.action)
     }
   }
 
@@ -92,24 +91,21 @@ export async function interpretTranscript({ transcript, streamId = demoSeller.st
         parseConfidence: intent.confidence,
         sourcePlatform: 'browser-demo'
       }
-      const message = buildProductDetailsQueueMessage({
-        eventType: 'audio.apply_discount',
-        streamId,
-        transcript,
-        intent,
-        product,
-        discount
-      })
-      const queued = await sendProductDetailsMessageToQueue(message)
+      const persistence = await saveDiscount(discount)
+      const { state, discount: activeDiscount } = addActiveDiscount(discount, streamId)
+      const latestDiscount = await getLatestDiscount() ?? activeDiscount
       result.action = {
-        type: 'productUpdateQueued',
-        queued,
-        message,
+        type: 'discountChanged',
         product,
-        discount,
+        discount: activeDiscount,
+        latestDiscount,
+        persistence,
+        streamId,
+        updatedAt: state.updatedAt,
         requestedAction: 'discountApplied'
       }
-      publishEvent('productUpdateQueued', result.action)
+      result.state = await getAudioState(streamId)
+      publishEvent('discountChanged', result.action)
     }
   }
 
@@ -117,34 +113,10 @@ export async function interpretTranscript({ transcript, streamId = demoSeller.st
   return result
 }
 
-function buildProductDetailsQueueMessage({
-  eventType,
-  streamId,
-  transcript,
-  intent,
-  product,
-  discount
-}) {
-  const createdAt = new Date().toISOString()
-
-  return {
-    schemaVersion: 1,
-    eventId: randomUUID(),
-    eventType,
-    source: 'tandem-backend.audio-parser',
-    streamId,
-    createdAt,
-    transcript,
-    intent,
-    product: {
-      productId: product.productId,
-      productName: product.name,
-      sku: product.sku ?? null,
-      price: product.price,
-      currency: product.currency
-    },
-    discount: discount ?? null
-  }
+function getDiscountTimestamp(discount) {
+  if (discount.startAt != null) return Number(discount.startAt) || 0
+  if (discount.appliedAt) return Date.parse(discount.appliedAt) || 0
+  return 0
 }
 
 function validateIntentAgainstCatalog(intent, products) {
