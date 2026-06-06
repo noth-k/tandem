@@ -109,7 +109,8 @@ function getChatFilterPayload(body) {
     conversation_timestamp,
     message,
     product_id,
-    buyer_username
+    buyer_username,
+    livestream_id
   } = body
 
   assertText(conversation_id, 'conversation_id')
@@ -117,12 +118,14 @@ function getChatFilterPayload(body) {
   assertText(message, 'message')
   assertText(product_id, 'product_id')
   assertText(buyer_username, 'buyer_username')
+  assertText(livestream_id, 'livestream_id')
 
   return {
     conversation_id: conversation_id.trim(),
     conversation_timestamp: conversation_timestamp.trim(),
     message: message.trim(),
     product_id: product_id.trim(),
-    buyer_username: buyer_username.trim()
+    buyer_username: buyer_username.trim(),
+    livestream_id: livestream_id.trim()
   }
 }

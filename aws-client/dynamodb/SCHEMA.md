@@ -36,13 +36,17 @@ Tables
 3) Messages
 - Purpose: store buyer messages, classifier outputs and AI replies.
 - Keys:
-  - Partition key: `conversationId` (S) — e.g., stream id or chat room id
-  - Sort key: `messageTimestamp` (S, ISO8601) — ensures ordered retrieval
+  - Partition key: `conversationId` (S) — unique message/conversation id for a single chat message
+  - Sort key: `messageTimestamp` (S, ISO8601) — message creation time
 - Attributes:
-  - `messageId` (S)
+  - `messageId` (S) — same value as `conversationId` for frontend-originated buyer messages
+  - `livestreamId` (S) — id of the livestream session this message belongs to; use this to filter stale messages from previous streams
+  - Snake-case aliases are also written for frontend/backend message compatibility:
+    `conversation_id`, `conversation_timestamp`, `message`, `product_id`, `buyer_username`, `livestream_id`
   - `buyerId` (S)
   - `buyerUsername` (S)
   - `messageText` (S)
+  - `productId` (S)
   - `aiCategory` (S) — classifier label (e.g., QUESTION, PURCHASE_INTENT, SPAM)
   - `aiResponse` (S) — the text the responder produced (if any)
   - `replySent` (BOOL)

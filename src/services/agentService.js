@@ -118,7 +118,8 @@ async function classifyMessageWithOpenAI(payload) {
             conversation_timestamp: payload.conversation_timestamp,
             message: payload.message,
             product_id: payload.product_id,
-            buyer_username: payload.buyer_username
+            buyer_username: payload.buyer_username,
+            livestream_id: payload.livestream_id
           })
         }
       ],

@@ -20,7 +20,8 @@ export async function sendChatMessageToQueue({
   conversation_timestamp,
   message,
   product_id,
-  buyer_username
+  buyer_username,
+  livestream_id
 }) {
   const queueUrl = process.env.CHAT_QUEUE_URL ?? DEFAULT_CHAT_QUEUE_URL
   const body = {
@@ -28,7 +29,8 @@ export async function sendChatMessageToQueue({
     conversation_timestamp,
     message,
     product_id,
-    buyer_username
+    buyer_username,
+    livestream_id
   }
 
   const command = new SendMessageCommand({
