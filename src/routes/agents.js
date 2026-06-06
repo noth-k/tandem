@@ -12,9 +12,12 @@ export const agentsRouter = Router()
 agentsRouter.post('/classify', async (req, res, next) => {
   try {
     const payload = getChatFilterPayload(req.body)
+    console.log('[agent2] received chat message', payload)
+    const result = await classifyAndQueueChatMessage(payload)
+    console.log('[agent2] classification result', result)
 
     res.json({
-      result: await classifyAndQueueChatMessage(payload)
+      result
     })
   } catch (error) {
     next(error)
